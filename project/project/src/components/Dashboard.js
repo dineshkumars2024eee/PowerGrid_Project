@@ -9,8 +9,6 @@ function Dashboard({ user, onLogout }) {
     location: "Delhi",
     tower_type: "132kV",
     substation_type: "AIS",
-    terrain: "Plain",
-    tax: 18,
   });
 
   const [prediction, setPrediction] = useState(null);
@@ -49,9 +47,6 @@ function Dashboard({ user, onLogout }) {
     if (formData.budget < 1 || formData.budget > 100) {
       errors.budget = "Budget must be between 1 and 100 Cr";
     }
-    if (formData.tax < 0 || formData.tax > 50) {
-      errors.tax = "Tax must be between 0 and 50%";
-    }
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -76,31 +71,35 @@ function Dashboard({ user, onLogout }) {
     setLoading(true);
 
     try {
-      const response = await fetch("http://127.0.0.1:8000/predict", {
+      const response = await fetch("https://your-python-api.onrender.com/predict", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
       });
 
+      if (!response.ok) {
+        throw new Error(`Server error: ${response.status}`);
+      }
+
       const data = await response.json();
 
-      if (data.predictions) {
-        setPrediction(data.predictions);
+      if (data) {
+        setPrediction(data);
         const newEntry = {
           id: Date.now(),
           timestamp: new Date().toLocaleString(),
           inputs: formData,
-          results: data.predictions
+          results: data
         };
         const updatedHistory = [newEntry, ...history].slice(0, 10);
         setHistory(updatedHistory);
         calculateStats(updatedHistory);
         localStorage.setItem("prediction_history", JSON.stringify(updatedHistory));
       } else {
-        setError(data.error || "Prediction failed");
+        setError("Prediction failed - no data received");
       }
     } catch (err) {
-      setError("Server error. Please ensure the backend is running on port 8000.");
+      setError("Unable to connect to prediction API. Please check your connection and try again.");
     } finally {
       setLoading(false);
     }
@@ -119,8 +118,6 @@ Project Parameters:
 - Location: ${formData.location}
 - Tower Type: ${formData.tower_type}
 - Substation Type: ${formData.substation_type}
-- Terrain: ${formData.terrain}
-- Tax: ${formData.tax}%
 
 Predicted Materials:
 ${Object.entries(prediction).map(([key, value]) => `- ${key}: ${value}`).join('\n')}
@@ -284,39 +281,6 @@ ${Object.entries(prediction).map(([key, value]) => `- ${key}: ${value}`).join('\
                 </div>
               </div>
 
-              <div className="form-row">
-                <div className="form-group">
-                  <label>🏔️ Terrain</label>
-                  <select name="terrain" value={formData.terrain} onChange={handleChange}>
-                    <option>Coastal</option>
-                    <option>Hilly</option>
-                    <option>Mountain</option>
-                    <option>Plain</option>
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <label>
-                    💳 Tax (%)
-                    <span className="label-value">{formData.tax}%</span>
-                  </label>
-                  <input
-                    type="range"
-                    name="tax"
-                    value={formData.tax}
-                    onChange={handleChange}
-                    min="0"
-                    max="50"
-                    className="range-input"
-                  />
-                  <div className="range-labels">
-                    <span>0%</span>
-                    <span>50%</span>
-                  </div>
-                  {formErrors.tax && <span className="field-error">{formErrors.tax}</span>}
-                </div>
-              </div>
-
               <button type="submit" className="predict-btn" disabled={loading}>
                 {loading ? (
                   <>
@@ -426,8 +390,8 @@ ${Object.entries(prediction).map(([key, value]) => `- ${key}: ${value}`).join('\
                             <span className="param-value">{entry.inputs.tower_type}</span>
                           </div>
                           <div className="param-item">
-                            <span className="param-label">Terrain:</span>
-                            <span className="param-value">{entry.inputs.terrain}</span>
+                            <span className="param-label">Substation:</span>
+                            <span className="param-value">{entry.inputs.substation_type}</span>
                           </div>
                         </div>
                       </div>
