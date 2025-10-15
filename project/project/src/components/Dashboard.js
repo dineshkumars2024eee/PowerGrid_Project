@@ -5,10 +5,10 @@ import LoadingSpinner from "./LoadingSpinner";
 
 function Dashboard({ user, onLogout }) {
   const [formData, setFormData] = useState({
-    budget: 10,
-    location: "Delhi",
-    tower_type: "132kV",
-    substation_type: "AIS",
+    budget: "",
+    location: "",
+    tower_type: "",
+    substation_type: "",
   });
 
   const [prediction, setPrediction] = useState(null);
@@ -17,7 +17,6 @@ function Dashboard({ user, onLogout }) {
   const [history, setHistory] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
   const [stats, setStats] = useState({ totalPredictions: 0, avgBudget: 0, lastPrediction: null });
-  const [formErrors, setFormErrors] = useState({});
 
   useEffect(() => {
     const savedHistory = localStorage.getItem("prediction_history");
@@ -42,27 +41,17 @@ function Dashboard({ user, onLogout }) {
     });
   };
 
-  const validateForm = () => {
-    const errors = {};
-    if (formData.budget < 1 || formData.budget > 100) {
-      errors.budget = "Budget must be between 1 and 100 Cr";
-    }
-    setFormErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
-    if (formErrors[name]) {
-      setFormErrors({ ...formErrors, [name]: "" });
-    }
+    setError("");
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!validateForm()) {
+    if (!formData.budget || !formData.location || !formData.tower_type || !formData.substation_type) {
+      setError("Please fill in all fields");
       return;
     }
 
@@ -73,12 +62,19 @@ function Dashboard({ user, onLogout }) {
     try {
       const response = await fetch("https://your-python-api.onrender.com/predict", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          budget: parseFloat(formData.budget),
+          location: formData.location,
+          tower_type: formData.tower_type,
+          substation_type: formData.substation_type,
+        }),
       });
 
       if (!response.ok) {
-        throw new Error(`Server error: ${response.status}`);
+        throw new Error(`API Error: ${response.status} ${response.statusText}`);
       }
 
       const data = await response.json();
@@ -96,16 +92,17 @@ function Dashboard({ user, onLogout }) {
         calculateStats(updatedHistory);
         localStorage.setItem("prediction_history", JSON.stringify(updatedHistory));
       } else {
-        setError("Prediction failed - no data received");
+        setError("No prediction data received from API");
       }
     } catch (err) {
-      setError("Unable to connect to prediction API. Please check your connection and try again.");
+      console.error("API Error:", err);
+      setError(`Failed to get prediction: ${err.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  const exportToPDF = () => {
+  const exportData = () => {
     if (!prediction) return;
 
     const content = `
@@ -145,7 +142,7 @@ ${Object.entries(prediction).map(([key, value]) => `- ${key}: ${value}`).join('\
       <div className="dashboard-container">
         <div className="header">
           <div>
-            <h2>⚡ POWERGRID Forecasting</h2>
+            <h2>POWERGRID Forecasting</h2>
             <p className="header-subtitle">Material Demand Prediction System</p>
           </div>
           <div className="user-info">
@@ -155,7 +152,7 @@ ${Object.entries(prediction).map(([key, value]) => `- ${key}: ${value}`).join('\
               <span className="user-role">{user?.role}</span>
             </div>
             <button onClick={onLogout} className="logout-btn">
-              <span>🚪</span> Logout
+              Logout
             </button>
           </div>
         </div>
@@ -166,21 +163,21 @@ ${Object.entries(prediction).map(([key, value]) => `- ${key}: ${value}`).join('\
             value={stats.totalPredictions}
             subtitle="Lifetime forecasts"
             icon="📊"
-            color="#667eea"
+            color="#3b82f6"
           />
           <StatsCard
             title="Avg Budget"
             value={`₹${stats.avgBudget} Cr`}
             subtitle="Per project"
             icon="💰"
-            color="#764ba2"
+            color="#10b981"
           />
           <StatsCard
             title="Last Prediction"
             value={stats.lastPrediction ? new Date(stats.lastPrediction.timestamp).toLocaleDateString() : "N/A"}
             subtitle={stats.lastPrediction ? new Date(stats.lastPrediction.timestamp).toLocaleTimeString() : "No data"}
             icon="🕐"
-            color="#f093fb"
+            color="#f59e0b"
           />
         </div>
 
@@ -206,39 +203,33 @@ ${Object.entries(prediction).map(([key, value]) => `- ${key}: ${value}`).join('\
             <form onSubmit={handleSubmit} className="prediction-form">
               <div className="form-row">
                 <div className="form-group">
-                  <label>
-                    💵 Budget (Crores)
-                    <span className="label-value">{formData.budget} Cr</span>
-                  </label>
+                  <label>💵 Budget (Crores)</label>
                   <input
-                    type="range"
+                    type="number"
                     name="budget"
                     value={formData.budget}
                     onChange={handleChange}
-                    min="1"
-                    max="100"
-                    className="range-input"
+                    placeholder="Enter budget in crores"
+                    step="0.01"
+                    min="0"
+                    required
                   />
-                  <div className="range-labels">
-                    <span>1 Cr</span>
-                    <span>100 Cr</span>
-                  </div>
-                  {formErrors.budget && <span className="field-error">{formErrors.budget}</span>}
                 </div>
 
                 <div className="form-group">
                   <label>📍 Location</label>
-                  <select name="location" value={formData.location} onChange={handleChange}>
-                    <option>Delhi</option>
-                    <option>Gujarat</option>
-                    <option>Karnataka</option>
-                    <option>Kerala</option>
-                    <option>Madhya Pradesh</option>
-                    <option>Maharashtra</option>
-                    <option>Odisha</option>
-                    <option>Rajasthan</option>
-                    <option>Tamil Nadu</option>
-                    <option>Telangana</option>
+                  <select name="location" value={formData.location} onChange={handleChange} required>
+                    <option value="">Select location</option>
+                    <option value="Delhi">Delhi</option>
+                    <option value="Gujarat">Gujarat</option>
+                    <option value="Karnataka">Karnataka</option>
+                    <option value="Kerala">Kerala</option>
+                    <option value="Madhya Pradesh">Madhya Pradesh</option>
+                    <option value="Maharashtra">Maharashtra</option>
+                    <option value="Odisha">Odisha</option>
+                    <option value="Rajasthan">Rajasthan</option>
+                    <option value="Tamil Nadu">Tamil Nadu</option>
+                    <option value="Telangana">Telangana</option>
                   </select>
                 </div>
               </div>
@@ -246,38 +237,21 @@ ${Object.entries(prediction).map(([key, value]) => `- ${key}: ${value}`).join('\
               <div className="form-row">
                 <div className="form-group">
                   <label>🗼 Tower Type</label>
-                  <div className="radio-group">
-                    {["132kV", "220kV", "400kV"].map((type) => (
-                      <label key={type} className="radio-label">
-                        <input
-                          type="radio"
-                          name="tower_type"
-                          value={type}
-                          checked={formData.tower_type === type}
-                          onChange={handleChange}
-                        />
-                        <span className="radio-custom">{type}</span>
-                      </label>
-                    ))}
-                  </div>
+                  <select name="tower_type" value={formData.tower_type} onChange={handleChange} required>
+                    <option value="">Select tower type</option>
+                    <option value="132kV">132kV</option>
+                    <option value="220kV">220kV</option>
+                    <option value="400kV">400kV</option>
+                  </select>
                 </div>
 
                 <div className="form-group">
                   <label>⚙️ Substation Type</label>
-                  <div className="radio-group">
-                    {["AIS", "GIS"].map((type) => (
-                      <label key={type} className="radio-label">
-                        <input
-                          type="radio"
-                          name="substation_type"
-                          value={type}
-                          checked={formData.substation_type === type}
-                          onChange={handleChange}
-                        />
-                        <span className="radio-custom">{type}</span>
-                      </label>
-                    ))}
-                  </div>
+                  <select name="substation_type" value={formData.substation_type} onChange={handleChange} required>
+                    <option value="">Select substation type</option>
+                    <option value="AIS">AIS (Air Insulated Switchgear)</option>
+                    <option value="GIS">GIS (Gas Insulated Switchgear)</option>
+                  </select>
                 </div>
               </div>
 
@@ -289,7 +263,7 @@ ${Object.entries(prediction).map(([key, value]) => `- ${key}: ${value}`).join('\
                   </>
                 ) : (
                   <>
-                    <span>🎯</span> Predict Materials
+                    🎯 Predict Materials
                   </>
                 )}
               </button>
@@ -308,8 +282,8 @@ ${Object.entries(prediction).map(([key, value]) => `- ${key}: ${value}`).join('\
               <div className="results-section">
                 <div className="results-header">
                   <h3>📊 Prediction Results</h3>
-                  <button onClick={exportToPDF} className="export-btn">
-                    <span>📥</span> Export
+                  <button onClick={exportData} className="export-btn">
+                    📥 Export
                   </button>
                 </div>
 
@@ -323,11 +297,14 @@ ${Object.entries(prediction).map(([key, value]) => `- ${key}: ${value}`).join('\
                       </tr>
                     </thead>
                     <tbody>
-                      {Object.entries(prediction).map(([key, value]) => (
-                        <tr key={key} className="table-row-animated">
+                      {Object.entries(prediction).map(([key, value], index) => (
+                        <tr key={key} className="table-row-animated" style={{ animationDelay: `${index * 0.1}s` }}>
                           <td className="material-name">
                             <span className="material-icon">
-                              {key.includes("Steel") ? "🔩" : key.includes("Cement") ? "🏗️" : "⚡"}
+                              {key.toLowerCase().includes("steel") ? "🔩" :
+                               key.toLowerCase().includes("cement") ? "🏗️" :
+                               key.toLowerCase().includes("conductor") ? "⚡" :
+                               key.toLowerCase().includes("cable") ? "🔌" : "📦"}
                             </span>
                             {key}
                           </td>
@@ -351,7 +328,7 @@ ${Object.entries(prediction).map(([key, value]) => `- ${key}: ${value}`).join('\
               <h3>📜 Prediction History</h3>
               {history.length > 0 && (
                 <button onClick={clearHistory} className="clear-btn">
-                  <span>🗑️</span> Clear All
+                  🗑️ Clear All
                 </button>
               )}
             </div>
@@ -398,13 +375,14 @@ ${Object.entries(prediction).map(([key, value]) => `- ${key}: ${value}`).join('\
                       <div className="history-results">
                         <h4>📊 Results</h4>
                         <div className="results-grid">
-                          {Object.entries(entry.results).map(([key, value]) => (
+                          {Object.entries(entry.results).slice(0, 4).map(([key, value]) => (
                             <div key={key} className="result-item">
                               <span className="result-icon">
-                                {key.includes("Steel") ? "🔩" : key.includes("Cement") ? "🏗️" : "⚡"}
+                                {key.toLowerCase().includes("steel") ? "🔩" :
+                                 key.toLowerCase().includes("cement") ? "🏗️" : "⚡"}
                               </span>
                               <div>
-                                <div className="result-label">{key.split(" ")[0]}</div>
+                                <div className="result-label">{key.split(" ").slice(0, 2).join(" ")}</div>
                                 <div className="result-value">{value}</div>
                               </div>
                             </div>
